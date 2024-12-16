@@ -18,18 +18,30 @@ WEBHOOK_URL = f"https://{BASE_URL}/webhook" if BASE_URL else None
 def set_webhook():
     if WEBHOOK_URL:
         bot.remove_webhook()
-        bot.set_webhook(url=WEBHOOK_URL)
-        print(f"Webhook已设置：{WEBHOOK_URL}")
+        success = bot.set_webhook(url=WEBHOOK_URL)
+        if success:
+            print(f"Webhook已成功设置：{WEBHOOK_URL}")
+        else:
+            print("Webhook设置失败，请检查配置！")
     else:
         print("未检测到WEBHOOK URL，跳过设置Webhook！")
+
+# 处理根路径请求
+@app.route('/')
+def index():
+    return "Telegram Bot is running! Use the Telegram app to interact."
 
 # 处理Webhook的POST请求
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    json_str = request.get_data(as_text=True)
-    update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
-    return '', 200
+    try:
+        json_str = request.get_data(as_text=True)
+        update = telebot.types.Update.de_json(json_str)
+        bot.process_new_updates([update])
+        return '', 200
+    except Exception as e:
+        print(f"处理Webhook请求时发生错误：{e}")
+        return '', 500
 
 # 处理/start命令
 @bot.message_handler(commands=['start'])
@@ -41,19 +53,23 @@ def send_welcome(message):
 def get_bin_info(message):
     bin_number = message.text.strip()
     if len(bin_number) == 6 and bin_number.isdigit():
-        response = requests.get(f"https://lookup.binlist.net/{bin_number}")
-        if response.status_code == 200:
-            data = response.json()
-            card_info = f"""
-            BIN: {bin_number}
-            Card Brand: {data.get('scheme', 'N/A')}
-            Card Type: {data.get('type', 'N/A')}
-            Bank: {data.get('bank', {}).get('name', 'N/A')}
-            Country: {data.get('country', {}).get('name', 'N/A')}
-            """
-            bot.reply_to(message, card_info)
-        else:
-            bot.reply_to(message, "Sorry, I couldn't fetch card details.")
+        try:
+            response = requests.get(f"https://lookup.binlist.net/{bin_number}")
+            if response.status_code == 200:
+                data = response.json()
+                card_info = f"""
+                BIN: {bin_number}
+                Card Brand: {data.get('scheme', 'N/A')}
+                Card Type: {data.get('type', 'N/A')}
+                Bank: {data.get('bank', {}).get('name', 'N/A')}
+                Country: {data.get('country', {}).get('name', 'N/A')}
+                """
+                bot.reply_to(message, card_info)
+            else:
+                bot.reply_to(message, "Sorry, I couldn't fetch card details.")
+        except requests.exceptions.RequestException as e:
+            print(f"请求BIN信息时发生错误：{e}")
+            bot.reply_to(message, "An error occurred while fetching BIN details. Please try again later.")
     else:
         bot.reply_to(message, "Please send a valid 6-digit BIN.")
 
