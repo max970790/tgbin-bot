@@ -1,4 +1,5 @@
 import telebot
+from flask import Flask, request
 import requests
 
 # 替换为你的Telegram bot Token
@@ -7,6 +8,9 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 # 定义binlist.io的API
 BINLIST_API_URL = "https://lookup.binlist.net/"
+
+# 创建Flask应用
+app = Flask(__name__)
 
 # 处理/start命令，发送欢迎消息
 @bot.message_handler(commands=['start'])
@@ -39,5 +43,21 @@ def get_card_info(message):
     else:
         bot.reply_to(message, "Please send me a valid 6-digit BIN.")
 
-# 启动Bot
-bot.polling()
+# Webhook路由，用于接收Telegram的更新
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    json_str = request.get_data().decode("UTF-8")
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
+    return "OK", 200
+
+# 设置Webhook
+def set_webhook():
+    webhook_url = 'https://yourdomain.com/webhook'  # 这里替换为你的Webhook URL
+    bot.remove_webhook()
+    bot.set_webhook(url=webhook_url)
+
+# 启动Flask应用
+if __name__ == '__main__':
+    set_webhook()  # 设置Webhook
+    app.run(host='0.0.0.0', port=80)  # 运行Flask服务器，监听HTTP请求
